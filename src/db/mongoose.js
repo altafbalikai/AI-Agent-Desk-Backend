@@ -12,7 +12,7 @@ async function connect() {
     w: 'majority'
   });
 
-  console.log('✅ MongoDB connected');
+  console.log('MongoDB connected');
 }
 
 module.exports = { connect, mongoose };
