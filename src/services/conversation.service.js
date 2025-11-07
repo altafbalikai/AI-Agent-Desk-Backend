@@ -6,7 +6,6 @@ const mongoose = require('mongoose');
 async function createConversation(userId, agentId, title) {
   if (!mongoose.isValidObjectId(userId)) throw Object.assign(new Error('Invalid userId'), { status: 400 });
 
-  // You can pass the string userId directly; Mongoose will cast it.
   const conv = await Conversation.create({ userId: new mongoose.Types.ObjectId(userId), agentId:agentId, title: title || 'New Conversation' });
   return conv.toObject();
 }
