@@ -13,7 +13,6 @@ function normalizeMessages(messages) {
         (m.parts && m.parts[0] && m.parts[0].text) ??
         '';
 
-      // Gemini supports only "user" and "model"
       if (role === 'assistant') role = 'model';
       if (role === 'system') {
         role = 'user';
@@ -38,11 +37,6 @@ async function askGemini(messages) {
       role: m.role, // "user" or "model"
       parts: [{ text: m.text }],
     }));
-
-    // Optional: debug log to confirm payload
-    //console.log('--- Gemini request payload ---');
-    //console.log(JSON.stringify(contents, null, 2));
-    //console.log('--- end payload ---');
 
     const response = await axios.post(
       `${GEMINI_URL}?key=${process.env.GEMINI_API_KEY}`,
