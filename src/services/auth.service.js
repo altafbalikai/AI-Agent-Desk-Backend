@@ -61,7 +61,6 @@ function normalizeEmail(email) {
 }
 
 function ensurePasswordPolicy(password) {
-  // simple policy: min 8 chars. You can plug zxcvbn for strength checks.
   if (!password || String(password).length < 8) {
     throw new HttpError('Password must be at least 8 characters long.', 400, 'WEAK_PASSWORD');
   }
@@ -72,53 +71,43 @@ async function signup({ email, name, password }) {
   if (!validator.isEmail(email)) throw new HttpError('Invalid email', 400, 'INVALID_EMAIL');
   ensurePasswordPolicy(password);
 
-  // Do not reveal whether user exists in high-security apps — but on signup it's ok to return 409
   const existing = await User.findOne({ email }).lean();
   if (existing) throw new HttpError('User already exists', 409, 'USER_EXISTS');
 
   const user = new User({
     email,
     name: String(name || '').trim(),
-    // default role etc.
   });
 
-  // assume User model has setPassword helper that salts + hashes
   await user.setPassword(password);
   await user.save();
 
-  // Optionally enqueue email verification here (send verification link)
   return user;
 }
 
 async function login({ email, password }) {
   email = normalizeEmail(email);
   if (!validator.isEmail(email)) {
-    // generic message to avoid user enumeration
+
     throw new HttpError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
   }
   if (!password) throw new HttpError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
 
   const user = await User.findOne({ email });
   if (!user) {
-    // generic message
     throw new HttpError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
   }
 
   const ok = await user.validatePassword(password);
   if (!ok) {
-    // optionally increment failed login counter and lock account after N tries
-    // user.incrementFailedLogins && await user.incrementFailedLogins()
     throw new HttpError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
   }
 
-  // Optionally reset failed login counter here on success
-
-  // access token payload - avoid embedding secrets
   const accessToken = signAccessToken({
     id: user._id.toString(),
     email: user.email,
     role: user.role,
-    tokenVersion: user.tokenVersion // supports forced logout if you bump tokenVersion
+    tokenVersion: user.tokenVersion
   });
 
   const { refreshToken } = await createRefreshTokenForUser(user);
@@ -144,7 +133,6 @@ async function createRefreshTokenForUser(user, session = null) {
 
   // create document using session if provided (so it participates in transaction)
   if (session) {
-    // use Model.create with session option or create + save with session
     const doc = new RefreshToken({
       userId: user._id,
       tokenHash,
@@ -169,9 +157,7 @@ async function createRefreshTokenForUser(user, session = null) {
 
 // Rotate refresh tokens - atomic using mongoose session
 // Rotate refresh tokens - session-safe
-// Rotate refresh tokens - session-safe, robust, and production-friendly
 async function refreshTokens(refreshTokenStr) {
-  // refreshTokenStr may be provided from request body or cookie at controller level
   if (!refreshTokenStr) {
     const e = new HttpError('refreshToken required', 400, 'MISSING_REFRESH_TOKEN');
     throw e;
@@ -181,7 +167,6 @@ async function refreshTokens(refreshTokenStr) {
   try {
     payload = verifyRefreshToken(refreshTokenStr);
   } catch (err) {
-    // JWT verify failed -> invalid token
     const e = new HttpError('Invalid refresh token (verify failed)', 401, 'INVALID_REFRESH_TOKEN');
     throw e;
   }
@@ -191,8 +176,7 @@ async function refreshTokens(refreshTokenStr) {
     throw new HttpError('Invalid refresh token payload', 401, 'INVALID_REFRESH_TOKEN');
   }
 
-  // Try to start a real transaction; safeStartTransaction returns null if unsupported
-  const session = await safeStartTransaction(); // may be null
+  const session = await safeStartTransaction();
   const usedTransaction = !!session;
 
   try {
@@ -434,7 +418,7 @@ async function resetPassword({ token: rawToken, newPassword, uid = null }) {
   }
 
   // Attempt to start a session & transaction, safely
-  const session = await safeStartTransaction(); // returns session or null
+  const session = await safeStartTransaction();
   const usedTransaction = !!session;
 
   try {
